@@ -4,6 +4,7 @@
 	"main": "dist/bot.js",
 	"scripts": {
 		"dev": "tsx src/bot.ts",
+		"postinstall": "playwright install chromium",
 		"build": "tsc",
 		"start": "node dist/bot.js"
 	},
