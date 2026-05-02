@@ -85,7 +85,12 @@ async function cardTextAroundLink(link: Locator): Promise<string> {
 
 export async function searchInPetrovich(query: string): Promise<Product[]> {
 	const browser = await chromium.launch({
-		headless: true
+		headless: true,
+		args: [
+			'--no-sandbox',
+			'--disable-setuid-sandbox',
+			'--disable-dev-shm-usage'
+		]
 	});
 
 	const page = await browser.newPage({
