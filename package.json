@@ -1,0 +1,25 @@
+{
+	"name": "petrovich-bot",
+	"version": "1.0.0",
+	"main": "dist/bot.js",
+	"scripts": {
+		"dev": "tsx src/bot.ts",
+		"build": "tsc",
+		"start": "node dist/bot.js"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"type": "module",
+	"dependencies": {
+		"dotenv": "^17.4.2",
+		"grammy": "^1.42.0",
+		"playwright": "^1.59.1"
+	},
+	"devDependencies": {
+		"@types/node": "^25.6.0",
+		"ts-node": "^10.9.2",
+		"tsx": "^4.21.0",
+		"typescript": "^6.0.3"
+	}
+}
