@@ -38,4 +38,54 @@ export async function addToPetrovichCart(userId, productUrl) {
         await browser.close();
     }
 }
+/**
+ * Пытается получить "ссылку для шаринга корзины" на сайте Петровича.
+ * Идея: в своей сессии (storageState) открыть /cart → нажать "Поделиться" → вытащить URL из модалки/поля.
+ *
+ * Возвращает `null`, если не удалось найти/вытащить ссылку (верстка может отличаться).
+ */
+export async function getPetrovichCartShareUrl(userId) {
+    await ensureDataDir();
+    const storageState = userStatePath(userId);
+    const browser = await launchBrowser();
+    try {
+        const context = await browser.newContext(existsSync(storageState) ? { storageState } : undefined);
+        const page = await context.newPage();
+        await page.goto('https://petrovich.ru/cart', { waitUntil: 'domcontentloaded', timeout: 30000 });
+        // cookie-баннер (если есть)
+        const cookieBtn = page.locator('button:has-text("Закрыть"), button:has-text("Принять"), button:has-text("Согласен")');
+        if (await cookieBtn.first().isVisible().catch(() => false)) {
+            await cookieBtn.first().click().catch(() => { });
+        }
+        // Кнопка "Поделиться" / "Поделиться корзиной"
+        const shareBtn = page.locator('button:has-text("Поделиться"), a:has-text("Поделиться")');
+        if ((await shareBtn.count()) === 0) {
+            await context.close();
+            return null;
+        }
+        await shareBtn.first().click().catch(() => { });
+        // Часто ссылка появляется в input/textarea или как <a>.
+        const input = page.locator('input[value^="http"], input[readonly][value^="http"], textarea');
+        const link = page.locator('a[href^="http"]');
+        // Небольшое ожидание модалки
+        await page.waitForTimeout(800);
+        let url = null;
+        if ((await input.count()) > 0) {
+            const v = await input.first().inputValue().catch(() => '');
+            if (v && v.startsWith('http'))
+                url = v;
+        }
+        if (!url && (await link.count()) > 0) {
+            const href = await link.first().getAttribute('href');
+            if (href && href.startsWith('http'))
+                url = href;
+        }
+        await context.storageState({ path: storageState });
+        await context.close();
+        return url;
+    }
+    finally {
+        await browser.close();
+    }
+}
 //# sourceMappingURL=cart.js.map

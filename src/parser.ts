@@ -5,4 +5,4 @@
 
 export type { Product, SortMode } from './petrovich/types.js';
 export { searchInPetrovich } from './petrovich/search.js';
-export { addToPetrovichCart } from './petrovich/cart.js';
+export { addToPetrovichCart, getPetrovichCartShareUrl } from './petrovich/cart.js';

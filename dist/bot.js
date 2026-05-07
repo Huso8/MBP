@@ -2,7 +2,7 @@ import { Bot } from 'grammy';
 import dotenv from 'dotenv';
 import { TtlCache } from './cache/ttl-cache.js';
 import { BotState } from './bot/state.js';
-import { addToPetrovichCart, searchInPetrovich } from './parser.js';
+import { addToPetrovichCart, getPetrovichCartShareUrl, searchInPetrovich } from './parser.js';
 dotenv.config();
 /**
  * Точка входа Telegram-бота.
@@ -56,6 +56,23 @@ bot.command('cart', async (ctx) => {
         .map((it, idx) => `${idx + 1}. ${it.name}\n   🔗 ${it.url}`)
         .join('\n\n');
     await ctx.reply(`🛒 Твоя корзина (внутри бота):\n\n${lines}`);
+});
+bot.command('sharecart', async (ctx) => {
+    if (!ctx.from)
+        return;
+    await ctx.reply('Генерирую ссылку на корзину…');
+    try {
+        const url = await getPetrovichCartShareUrl(ctx.from.id);
+        if (!url) {
+            await ctx.reply('Не нашёл кнопку/ссылку «Поделиться корзиной» на сайте. Возможно, изменилась вёрстка или корзина пуста.');
+            return;
+        }
+        await ctx.reply(`🔗 Ссылка на корзину: ${url}`);
+    }
+    catch (e) {
+        console.error(e);
+        await ctx.reply('Не получилось получить ссылку на корзину. Попробуй позже.');
+    }
 });
 bot.on('callback_query:data', async (ctx) => {
     const data = ctx.callbackQuery.data;
