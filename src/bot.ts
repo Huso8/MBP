@@ -24,6 +24,9 @@ const searchCache = new TtlCache<Product[]>(120_000);
 // Состояние пользователя (сортировка, последние результаты для кнопок).
 const state = new BotState();
 
+// Корзина "внутри бота" (в памяти процесса). Нужна, потому что корзина на сайте создаётся в сессии Playwright на сервере.
+const botCart = new Map<number, { url: string; name: string; addedAt: number }[]>();
+
 function normalizeQuery(q: string): string {
 	return q.trim().toLowerCase().replace(/\s+/g, ' ');
 }
@@ -51,6 +54,22 @@ bot.command('popular', async (ctx) => {
 	await ctx.reply('Сортировка: как на сайте (популярность/релевантность).');
 });
 
+bot.command('cart', async (ctx) => {
+	if (!ctx.from) return;
+	const items = botCart.get(ctx.from.id) ?? [];
+	if (items.length === 0) {
+		await ctx.reply('Корзина пуста. Добавляй товары кнопкой «🛒 В корзину» под результатами.');
+		return;
+	}
+
+	const lines = items
+		.slice(-20)
+		.reverse()
+		.map((it, idx) => `${idx + 1}. ${it.name}\n   🔗 ${it.url}`)
+		.join('\n\n');
+	await ctx.reply(`🛒 Твоя корзина (внутри бота):\n\n${lines}`);
+});
+
 bot.on('callback_query:data', async (ctx) => {
 	const data = ctx.callbackQuery.data;
 	if (!data.startsWith('add:')) return;
@@ -68,7 +87,15 @@ bot.on('callback_query:data', async (ctx) => {
 
 	try {
 		await addToPetrovichCart(userId, item.url);
-		await ctx.reply(`✅ Добавил в корзину: ${item.name}\n🛒 Корзина: https://petrovich.ru/cart`);
+		const arr = botCart.get(userId) ?? [];
+		arr.push({ url: item.url, name: item.name, addedAt: Date.now() });
+		botCart.set(userId, arr);
+
+		await ctx.reply(
+			`✅ Добавил: ${item.name}\n\n` +
+				`Важно: добавление происходит в сессии браузера бота на сервере, поэтому в твоём личном браузере корзина может быть пустой.\n` +
+				`Проверь «/cart» — там твоя корзина в боте.`
+		);
 	} catch (e) {
 		console.error(e);
 		await ctx.reply('Не получилось добавить в корзину (вёрстка/кнопка/доступ). Попробуй позже.');
@@ -107,6 +134,7 @@ bot.on('message:text', async (ctx) => {
 		let text = `🔎 Результаты по запросу: <b>${query}</b>\n\n`;
 
 		const resMap = new Map<string, { url: string; name: string }>();
+		const keyboard: { text: string; callback_data: string }[][] = [];
 		results.slice(0, 6).forEach((item, i) => {
 			const m = String(item.url).match(/\/product\/(\d+)\//);
 			const pid = m?.[1] ?? String(i);
@@ -116,6 +144,9 @@ bot.on('message:text', async (ctx) => {
 			text += `   💰 ${item.price}\n`;
 			text += `   📍 ${item.availability}\n`;
 			text += `   🔗 ${item.url}\n\n`;
+
+			// Кнопка под каждой позицией
+			keyboard.push([{ text: `🛒 В корзину #${i + 1}`, callback_data: `add:${pid}` }]);
 		});
 
 		state.setLastResults(ctx.from.id, resMap);
@@ -124,17 +155,8 @@ bot.on('message:text', async (ctx) => {
 			message.chat.id,
 			message.message_id,
 			text,
-			{ parse_mode: 'HTML' }
+			{ parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboard } }
 		);
-
-		// Кнопки "в корзину" отдельным сообщением (проще, чем редактировать клавиатуру в editMessageText)
-		const buttons = Array.from(resMap.entries()).slice(0, 6).map(([pid, meta]) => ({
-			text: `🛒 В корзину: ${meta.name.slice(0, 24)}${meta.name.length > 24 ? '…' : ''}`,
-			callback_data: `add:${pid}`
-		}));
-		await ctx.reply('Добавить товар в корзину:', {
-			reply_markup: { inline_keyboard: buttons.map((b) => [b]) }
-		});
 
 	} catch (error) {
 		console.error(error);
